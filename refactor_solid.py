@@ -7,6 +7,14 @@ from typing import List
 # ----------------------------
 @dataclass
 class Student:
+    """Kelas yang merepresentasikan data mahasiswa.
+    
+    Attributes:
+        name (str): Nama lengkap mahasiswa.
+        completed_courses (List[str]): Daftar kode mata kuliah yang telah diselesaikan.
+        current_sks (int): Jumlah SKS yang sedang diambil saat ini.
+        ipk (float): Indeks Prestasi Kumulatif mahasiswa.
+    """
     name: str
     completed_courses: List[str]
     current_sks: int
@@ -14,22 +22,57 @@ class Student:
 
 @dataclass
 class Course:
+    """Kelas yang merepresentasikan data mata kuliah.
+    
+    Attributes:
+        code (str): Kode mata kuliah.
+        sks (int): Jumlah Satuan Kredit Semester.
+        prereqs (List[str]): Daftar kode mata kuliah prasyarat yang harus dipenuhi.
+    """
     code: str
     sks: int
     prereqs: List[str]
 
 class ValidatorManagerBad:
     """
-    Class ini melanggar:
-    - SRP: menampung banyak tanggung jawab (cek SKS, cek prasyarat, cek IPK, kirim notifikasi, dll.)
-    - OCP: menambah rule baru harus ubah method ini
-    - DIP: menggunakan pengecekan konkrit dan hard-coded
+    Contoh implementasi yang melanggar prinsip SOLID.
+    
+    Class ini memiliki beberapa masalah:
+    - SRP (Single Responsibility Principle): Memiliki banyak tanggung jawab dalam satu kelas
+    - OCP (Open-Closed Principle): Sulit untuk menambah aturan validasi baru
+    - DIP (Dependency Inversion Principle): Bergantung pada implementasi konkret
+    
+    Args:
+        max_sks (int, optional): Batas maksimum SKS yang diizinkan. Defaults to 24.
     """
+    
     def __init__(self, max_sks=24):
+        """
+        Inisialisasi ValidatorManagerBad.
+        
+        Args:
+            max_sks (int): Batas maksimum SKS untuk validasi.
+        """
         self.max_sks = max_sks
 
     def validate_registration(self, student: Student, course: Course) -> bool:
+        """
+        Memvalidasi pendaftaran mahasiswa untuk suatu mata kuliah.
+        
+        Method ini melakukan beberapa validasi sekaligus:
+        1. Mengecek apakah penambahan SKS melebihi batas maksimum
+        2. Mengecek apakah semua prasyarat telah terpenuhi
+        3. Mengecek apakah IPK memenuhi batas minimum
+        
+        Args:
+            student (Student): Data mahasiswa yang akan divalidasi.
+            course (Course): Mata kuliah yang akan diambil.
+            
+        Returns:
+            bool: True jika semua validasi berhasil, False jika salah satu gagal.
+        """
         print(f"[BAD] Memvalidasi pendaftaran {student.name} untuk {course.code} ...")
+        
         # cek SKS
         if student.current_sks + course.sks > self.max_sks:
             print(" - Gagal: Melebihi batas SKS.")
@@ -57,24 +100,75 @@ class ValidatorManagerBad:
 # --- Abstraksi: kontrak validator ---
 class IValidator(ABC):
     """
-    Kontrak: setiap validator harus punya method validate() yang mengembalikan (bool, pesan)
+    Interface/abstract class untuk kontrak validator.
+    
+    Semua kelas validator harus mengimplementasikan method validate().
+    Ini mengikuti Dependency Inversion Principle (DIP).
     """
+    
     @abstractmethod
     def validate(self, student: Student, course: Course) -> (bool, str):
+        """
+        Melakukan validasi berdasarkan aturan tertentu.
+        
+        Args:
+            student (Student): Data mahasiswa yang akan divalidasi.
+            course (Course): Mata kuliah yang akan diambil.
+            
+        Returns:
+            tuple: (bool, str) - status validasi dan pesan deskriptif.
+        """
         pass
 
 # --- Implementasi konkret (plug-in validators) ---
 class SKSValidator(IValidator):
+    """
+    Validator untuk memeriksa batas maksimum SKS.
+    
+    Args:
+        max_sks (int, optional): Batas maksimum SKS yang diizinkan. Defaults to 24.
+    """
+    
     def __init__(self, max_sks: int = 24):
+        """
+        Inisialisasi SKSValidator.
+        
+        Args:
+            max_sks (int): Batas maksimum SKS untuk validasi.
+        """
         self.max_sks = max_sks
 
     def validate(self, student: Student, course: Course):
+        """
+        Memvalidasi apakah penambahan SKS melebihi batas maksimum.
+        
+        Args:
+            student (Student): Data mahasiswa yang akan divalidasi.
+            course (Course): Mata kuliah yang akan diambil.
+            
+        Returns:
+            tuple: (bool, str) - True jika valid, False jika gagal beserta pesan.
+        """
         if student.current_sks + course.sks > self.max_sks:
             return False, f"Melebihi batas SKS (max {self.max_sks})"
         return True, "SKS OK"
 
 class PrerequisiteValidator(IValidator):
+    """
+    Validator untuk memeriksa pemenuhan prasyarat mata kuliah.
+    """
+    
     def validate(self, student: Student, course: Course):
+        """
+        Memvalidasi apakah semua prasyarat mata kuliah telah dipenuhi.
+        
+        Args:
+            student (Student): Data mahasiswa yang akan divalidasi.
+            course (Course): Mata kuliah yang akan diambil.
+            
+        Returns:
+            tuple: (bool, str) - True jika valid, False jika gagal beserta pesan.
+        """
         missing = [c for c in course.prereqs if c not in student.completed_courses]
         if missing:
             return False, f"Prasyarat tidak terpenuhi: {missing}"
@@ -82,10 +176,33 @@ class PrerequisiteValidator(IValidator):
 
 # Contoh validator baru: rule tambahan untuk membuktikan OCP
 class IPKValidator(IValidator):
+    """
+    Validator untuk memeriksa batas minimum IPK.
+    
+    Args:
+        min_ipk (float, optional): Batas minimum IPK yang diizinkan. Defaults to 2.5.
+    """
+    
     def __init__(self, min_ipk: float = 2.5):
+        """
+        Inisialisasi IPKValidator.
+        
+        Args:
+            min_ipk (float): Batas minimum IPK untuk validasi.
+        """
         self.min_ipk = min_ipk
 
     def validate(self, student: Student, course: Course):
+        """
+        Memvalidasi apakah IPK memenuhi batas minimum.
+        
+        Args:
+            student (Student): Data mahasiswa yang akan divalidasi.
+            course (Course): Mata kuliah yang akan diambil.
+            
+        Returns:
+            tuple: (bool, str) - True jika valid, False jika gagal beserta pesan.
+        """
         if student.ipk < self.min_ipk:
             return False, f"IPK harus >= {self.min_ipk}"
         return True, "IPK OK"
@@ -93,14 +210,36 @@ class IPKValidator(IValidator):
 # --- Koordinator (Coordinator) ---
 class RegistrationValidator:
     """
-    Tanggung jawab tunggal: mengkoordinasi sekumpulan validator.
-    - Menerima dependency berupa list IValidator melalui konstruktor (Dependency Injection).
-    - Tidak tahu detail implementasi tiap validator (pegang kontrak IValidator).
+    Koordinator untuk mengelola eksekusi beberapa validator.
+    
+    Kelas ini mengikuti Single Responsibility Principle (SRP) dengan
+    hanya bertanggung jawab mengkoordinasi validator, bukan mengimplementasikan
+    logika validasi.
+    
+    Args:
+        validators (List[IValidator]): Daftar validator yang akan digunakan.
     """
+    
     def __init__(self, validators: List[IValidator]):
+        """
+        Inisialisasi RegistrationValidator.
+        
+        Args:
+            validators (List[IValidator]): Daftar validator yang akan dijalankan.
+        """
         self.validators = validators
 
     def validate(self, student: Student, course: Course) -> bool:
+        """
+        Menjalankan semua validator dan mengumpulkan hasilnya.
+        
+        Args:
+            student (Student): Data mahasiswa yang akan divalidasi.
+            course (Course): Mata kuliah yang akan diambil.
+            
+        Returns:
+            bool: True jika semua validator berhasil, False jika ada yang gagal.
+        """
         print(f"[REFAC] Memvalidasi pendaftaran {student.name} untuk {course.code} ...")
         all_ok = True
         for v in self.validators:
@@ -109,6 +248,7 @@ class RegistrationValidator:
             if not ok:
                 all_ok = False
                 # tetap lanjutkan untuk menampilkan semua pesan (atau bisa return False langsung)
+        
         if all_ok:
             print(" - Semua validator lulus. Daftar berhasil. Mengirim notifikasi...")
             return True
@@ -120,6 +260,14 @@ class RegistrationValidator:
 # Eksekusi & Pembuktian OCP
 # ----------------------------
 def main():
+    """
+    Fungsi utama untuk menjalankan demonstrasi sistem validasi.
+    
+    Menampilkan:
+    1. Contoh kode buruk yang melanggar prinsip SOLID
+    2. Contoh kode refactor yang mengikuti prinsip SOLID
+    3. Demonstrasi Open-Closed Principle dengan menambah validator baru
+    """
     # Contoh Data
     siti = Student(name="Siti", completed_courses=["IF101", "MATH101"], current_sks=15, ipk=3.0)
     udin = Student(name="Udin", completed_courses=["IF101"], current_sks=22, ipk=2.0)
@@ -146,4 +294,7 @@ def main():
     coord2.validate(udin, networks)       # gagal karena IPK < 2.5
 
 if __name__ == "__main__":
+    """
+    Entry point program.
+    """
     main()

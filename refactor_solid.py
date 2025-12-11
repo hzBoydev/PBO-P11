@@ -1,6 +1,14 @@
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List
+
+# Setup logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
 
 # ----------------------------
 # Contoh "KODE BURUK" (God Class)
@@ -71,26 +79,26 @@ class ValidatorManagerBad:
         Returns:
             bool: True jika semua validasi berhasil, False jika salah satu gagal.
         """
-        print(f"[BAD] Memvalidasi pendaftaran {student.name} untuk {course.code} ...")
+        logging.info(f"[BAD] Memvalidasi pendaftaran {student.name} untuk {course.code} ...")
         
         # cek SKS
         if student.current_sks + course.sks > self.max_sks:
-            print(" - Gagal: Melebihi batas SKS.")
+            logging.warning(" - Gagal: Melebihi batas SKS.")
             return False
 
         # cek prasyarat
         missing = [c for c in course.prereqs if c not in student.completed_courses]
         if missing:
-            print(f" - Gagal: Prasyarat tidak terpenuhi: {missing}")
+            logging.warning(f" - Gagal: Prasyarat tidak terpenuhi: {missing}")
             return False
 
         # cek IPK (misal rule tambahan)
         if student.ipk < 2.5:
-            print(" - Gagal: IPK di bawah batas minimal.")
+            logging.warning(" - Gagal: IPK di bawah batas minimal.")
             return False
 
         # notifikasi (hardcoded)
-        print(f" - Sukses: {student.name} terdaftar. Mengirim notifikasi email...")
+        logging.info(f" - Sukses: {student.name} terdaftar. Mengirim notifikasi email...")
         return True
 
 # ----------------------------
@@ -150,7 +158,9 @@ class SKSValidator(IValidator):
             tuple: (bool, str) - True jika valid, False jika gagal beserta pesan.
         """
         if student.current_sks + course.sks > self.max_sks:
+            logging.warning(f"SKSValidator: Melebihi batas SKS (max {self.max_sks})")
             return False, f"Melebihi batas SKS (max {self.max_sks})"
+        logging.info(f"SKSValidator: SKS OK")
         return True, "SKS OK"
 
 class PrerequisiteValidator(IValidator):
@@ -171,7 +181,9 @@ class PrerequisiteValidator(IValidator):
         """
         missing = [c for c in course.prereqs if c not in student.completed_courses]
         if missing:
+            logging.warning(f"PrerequisiteValidator: Prasyarat tidak terpenuhi: {missing}")
             return False, f"Prasyarat tidak terpenuhi: {missing}"
+        logging.info(f"PrerequisiteValidator: Prasyarat OK")
         return True, "Prasyarat OK"
 
 # Contoh validator baru: rule tambahan untuk membuktikan OCP
@@ -204,7 +216,9 @@ class IPKValidator(IValidator):
             tuple: (bool, str) - True jika valid, False jika gagal beserta pesan.
         """
         if student.ipk < self.min_ipk:
+            logging.warning(f"IPKValidator: IPK harus >= {self.min_ipk}")
             return False, f"IPK harus >= {self.min_ipk}"
+        logging.info(f"IPKValidator: IPK OK")
         return True, "IPK OK"
 
 # --- Koordinator (Coordinator) ---
@@ -240,20 +254,20 @@ class RegistrationValidator:
         Returns:
             bool: True jika semua validator berhasil, False jika ada yang gagal.
         """
-        print(f"[REFAC] Memvalidasi pendaftaran {student.name} untuk {course.code} ...")
+        logging.info(f"[REFAC] Memvalidasi pendaftaran {student.name} untuk {course.code} ...")
         all_ok = True
         for v in self.validators:
             ok, message = v.validate(student, course)
-            print(f" - {v.__class__.__name__}: {message}")
+            logging.info(f" - {v.__class__.__name__}: {message}")
             if not ok:
                 all_ok = False
                 # tetap lanjutkan untuk menampilkan semua pesan (atau bisa return False langsung)
         
         if all_ok:
-            print(" - Semua validator lulus. Daftar berhasil. Mengirim notifikasi...")
+            logging.info(" - Semua validator lulus. Daftar berhasil. Mengirim notifikasi...")
             return True
         else:
-            print(" - Validasi gagal. Tidak jadi mendaftar.")
+            logging.warning(" - Validasi gagal. Tidak jadi mendaftar.")
             return False
 
 # ----------------------------
@@ -275,18 +289,18 @@ def main():
     advanced_ai = Course(code="AI201", sks=3, prereqs=["IF101", "MATH101"])
     networks = Course(code="NET202", sks=3, prereqs=["IF101"])
 
-    print("\n=== Skenario 0: Menjalankan Kode Buruk (sebagai perbandingan) ===")
+    logging.info("\n=== Skenario 0: Menjalankan Kode Buruk (sebagai perbandingan) ===")
     bad = ValidatorManagerBad(max_sks=24)
     bad.validate_registration(siti, advanced_ai)
     bad.validate_registration(udin, networks)
 
-    print("\n=== Skenario 1: Refactor - Inject SKS + Prerequisite Validators ===")
+    logging.info("\n=== Skenario 1: Refactor - Inject SKS + Prerequisite Validators ===")
     validators = [SKSValidator(max_sks=24), PrerequisiteValidator()]
     coord = RegistrationValidator(validators=validators)
     coord.validate(siti, advanced_ai)  # sukses
     coord.validate(udin, networks)       # gagal karena SKS atau IPK
 
-    print("\n=== Skenario 2: Pembuktian OCP - Tambah Validator baru (IPK) TANPA ubah RegistrationValidator ===")
+    logging.info("\n=== Skenario 2: Pembuktian OCP - Tambah Validator baru (IPK) TANPA ubah RegistrationValidator ===")
     # Tambah validator baru cukup buat kelas baru dan inject ke dalam coordinator
     validators_with_ipk = [SKSValidator(24), PrerequisiteValidator(), IPKValidator(min_ipk=2.5)]
     coord2 = RegistrationValidator(validators=validators_with_ipk)
